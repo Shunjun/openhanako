@@ -609,7 +609,26 @@
       "sharing": "共有",
       "plugins": "プラグイン",
       "about": "概要",
-      "security": "セキュリティ"
+      "security": "セキュリティ",
+      "network": "ネットワーク"
+    },
+    "network": {
+      "proxy": "プロキシ",
+      "enableProxy": "プロキシを有効にする",
+      "enableProxyHint": "プロキシサーバー経由で外部リクエスト（LLM APIなど）をルーティング",
+      "proxyUrl": "プロキシURL",
+      "proxyUrlHint": "http://、https://、socks5:// をサポート",
+      "proxyUsername": "ユーザー名",
+      "proxyPassword": "パスワード",
+      "noProxy": "プロキシしないアドレス",
+      "noProxyHint": "カンマ区切り（例: localhost,127.0.0.1）",
+      "optional": "オプション",
+      "testConnection": "接続テスト",
+      "testBtn": "テスト",
+      "testing": "テスト中…",
+      "testSuccess": "接続成功、出口IP: {ip}",
+      "testFailed": "接続失敗",
+      "proxyUrlRequired": "プロキシURLを入力してください"
     },
     "computerUse": {
       "title": "Computer Use",

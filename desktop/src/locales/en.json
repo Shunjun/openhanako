@@ -612,7 +612,26 @@
       "sharing": "Sharing",
       "plugins": "Plugins",
       "about": "About",
-      "security": "Security"
+      "security": "Security",
+      "network": "Network"
+    },
+    "network": {
+      "proxy": "Proxy",
+      "enableProxy": "Enable Proxy",
+      "enableProxyHint": "Route external requests (e.g. LLM APIs) through a proxy server",
+      "proxyUrl": "Proxy URL",
+      "proxyUrlHint": "Supports http://, https://, socks5://",
+      "proxyUsername": "Username",
+      "proxyPassword": "Password",
+      "noProxy": "No Proxy",
+      "noProxyHint": "Comma-separated, e.g. localhost,127.0.0.1",
+      "optional": "Optional",
+      "testConnection": "Test Connection",
+      "testBtn": "Test",
+      "testing": "Testing...",
+      "testSuccess": "Connected, exit IP: {ip}",
+      "testFailed": "Connection failed",
+      "proxyUrlRequired": "Please enter a proxy URL"
     },
     "appearance": {
       "title": "Appearance",
