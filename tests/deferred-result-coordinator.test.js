@@ -91,6 +91,60 @@ describe("DeferredResultCoordinator", () => {
     expect(store.markDelivered).toHaveBeenCalledWith("t2");
   });
 
+  it("treats session_status=true as busy even if session.isStreaming is false", async () => {
+    sessionState = { isStreaming: false };
+    const pi = { sendMessage: vi.fn() };
+    coordinator.bindSession("/s/a", pi);
+    sessionListener?.({ type: "session_status", isStreaming: true }, "/s/a");
+
+    coordinator.enqueueTask("t1", {
+      sessionPath: "/s/a",
+      status: "resolved",
+      result: "late result",
+      meta: {},
+      delivered: false,
+    });
+
+    await flushMicrotasks();
+    expect(pi.sendMessage).not.toHaveBeenCalled();
+
+    sessionListener?.({ type: "turn_end" }, "/s/a");
+    await flushMicrotasks();
+
+    expect(pi.sendMessage).toHaveBeenCalledTimes(1);
+    expect(store.markDelivered).toHaveBeenCalledWith("t1");
+  });
+
+  it("does not spin while a detached restored session is still streaming", async () => {
+    engine.ensureSessionLoaded.mockImplementation(async () => {
+      sessionState ??= { isStreaming: true };
+      return sessionState;
+    });
+
+    coordinator.enqueueTask("t1", {
+      sessionPath: "/s/a",
+      status: "resolved",
+      result: "late result",
+      meta: {},
+      delivered: false,
+    });
+
+    await flushMicrotasks();
+    await flushMicrotasks();
+
+    expect(engine.ensureSessionLoaded).toHaveBeenCalledTimes(1);
+    expect(engine.promptSession).not.toHaveBeenCalled();
+    expect(store.markDelivered).not.toHaveBeenCalled();
+
+    sessionState = { isStreaming: false };
+    sessionListener?.({ type: "turn_end" }, "/s/a");
+    await flushMicrotasks();
+
+    expect(engine.promptSession).toHaveBeenCalledTimes(1);
+    expect(engine.promptSession.mock.calls[0][1]).toContain('task-id="t1"');
+    expect(store.markDelivered).toHaveBeenCalledWith("t1");
+  });
+
   it("restores a detached session and reuses steer delivery when the live binding comes back", async () => {
     const pi = { sendMessage: vi.fn() };
     engine.ensureSessionLoaded.mockImplementation(async (sessionPath) => {
