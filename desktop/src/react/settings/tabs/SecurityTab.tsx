@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSettingsStore } from '../store';
 import { autoSaveConfig, t } from '../helpers';
 import { hanaFetch } from '../api';
@@ -36,10 +36,24 @@ export function SecurityTab() {
   const showToast = useSettingsStore(s => s.showToast);
   const sandboxEnabled = settingsConfig?.sandbox !== false;
   const sandboxNetworkEnabled = settingsConfig?.sandbox_network === true;
+  const sandboxWritablePaths = useMemo((): string[] => {
+    const p = settingsConfig?.sandbox_writable_paths;
+    return Array.isArray(p) ? p : [];
+  }, [settingsConfig?.sandbox_writable_paths]);
   const fileBackup = settingsConfig?.file_backup || { enabled: false, retention_days: 1, max_file_size_kb: 1024 };
 
   const [checkpoints, setCheckpoints] = useState<Checkpoint[]>([]);
   const [loading, setLoading] = useState(false);
+  const [newWritablePath, setNewWritablePath] = useState('');
+  const [defaultPaths, setDefaultPaths] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!sandboxEnabled) return;
+    hanaFetch('/api/config/sandbox-default-paths')
+      .then(r => r.json())
+      .then(d => setDefaultPaths(d.paths || []))
+      .catch(() => setDefaultPaths([]));
+  }, [sandboxEnabled]);
 
   const handleSandboxToggle = useCallback(async (on: boolean) => {
     await autoSaveConfig({ sandbox: on }, { silent: true });
@@ -50,6 +64,19 @@ export function SecurityTab() {
     await autoSaveConfig({ sandbox_network: on }, { silent: true });
     await loadSettingsConfig();
   }, []);
+
+  const addWritablePath = useCallback(async () => {
+    const p = newWritablePath.trim();
+    if (!p || sandboxWritablePaths.includes(p)) return;
+    await autoSaveConfig({ sandbox_writable_paths: [...sandboxWritablePaths, p] }, { silent: true });
+    setNewWritablePath('');
+    await loadSettingsConfig();
+  }, [newWritablePath, sandboxWritablePaths]);
+
+  const removeWritablePath = useCallback(async (p: string) => {
+    await autoSaveConfig({ sandbox_writable_paths: sandboxWritablePaths.filter(x => x !== p) }, { silent: true });
+    await loadSettingsConfig();
+  }, [sandboxWritablePaths]);
 
   const handleBackupToggle = useCallback(async (on: boolean) => {
     const current = useSettingsStore.getState().settingsConfig?.file_backup || {};
@@ -130,6 +157,52 @@ export function SecurityTab() {
             />
           }
         />
+
+        {sandboxEnabled && (
+          <div className={styles['sandbox-paths-wrapper']}>
+            <div className={styles['sandbox-paths-header']}>
+              <span className={styles['sandbox-paths-title']}>{t('settings.security.sandboxWritablePaths')}</span>
+            </div>
+            <div className={styles['sandbox-paths-list']}>
+              {defaultPaths.map(p => (
+                <div key={p} className={styles['sandbox-path-row']}>
+                  <span className={`${styles['sandbox-path-text']} ${styles['sandbox-path-locked']}`}>{p}</span>
+                  <span className={styles['sandbox-path-badge']}>...</span>
+                </div>
+              ))}
+              {sandboxWritablePaths.map(p => (
+                <div key={p} className={styles['sandbox-path-row']}>
+                  <span className={styles['sandbox-path-text']}>{p}</span>
+                  <button
+                    className={styles['sandbox-path-remove']}
+                    onClick={() => removeWritablePath(p)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className={styles['sandbox-add-row']}>
+              <input
+                className={styles['sandbox-add-input']}
+                type="text"
+                placeholder={t('settings.security.sandboxPathPlaceholder')}
+                value={newWritablePath}
+                onChange={(e) => setNewWritablePath(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addWritablePath();
+                }}
+              />
+              <button
+                className={styles['sandbox-add-btn']}
+                onClick={addWritablePath}
+              >
+                {t('settings.security.sandboxAddPath')}
+              </button>
+            </div>
+          </div>
+        )}
+
         {!sandboxEnabled && (
           <SettingsSection.Warning>
             {t('settings.security.sandboxWarning')}
