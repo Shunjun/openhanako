@@ -54,6 +54,7 @@ import { configureProcessPiSdkEnv, ensureHanaPiSdkDirs, resolveHanakoHome } from
 // upgrade handler below (WsTransport needs raw ws .on()/.off() methods)
 import { ConfirmStore } from "../lib/confirm-store.js";
 import { DeferredResultStore } from "../lib/deferred-result-store.js";
+import { DeferredResultCoordinator } from "../lib/deferred-result-coordinator.js";
 import { normalizeDeferredResolveResult } from "../lib/deferred-result-payload.js";
 import { createDeferredResultExtension } from "../lib/extensions/deferred-result-ext.js";
 import { createCompactionGuardExtension } from "../lib/extensions/compaction-guard-ext.js";
@@ -187,7 +188,22 @@ const deferredResultStore = new DeferredResultStore(
   hub.eventBus,
   path.join(hanakoHome, ".ephemeral", "deferred-tasks.json"),
 );
+const deferredResultCoordinator = new DeferredResultCoordinator({
+  engine,
+  deferredStore: deferredResultStore,
+});
 engine.setDeferredResultStore(deferredResultStore);
+
+const forwardDeferredTaskToCoordinator = (taskId) => {
+  const task = deferredResultStore.query(taskId);
+  if (task) deferredResultCoordinator.enqueueTask(taskId, task);
+};
+deferredResultStore.onResult((taskId) => {
+  forwardDeferredTaskToCoordinator(taskId);
+});
+deferredResultStore.onFail((taskId) => {
+  forwardDeferredTaskToCoordinator(taskId);
+});
 
 // Bus handlers for plugin access
 hub.eventBus.handle("deferred:register", ({ taskId, sessionPath, meta }) => {
@@ -270,7 +286,9 @@ hub.eventBus.handle("session:get-titles", async ({ paths }) => {
 });
 
 // Register Pi SDK extension factory
-await engine.registerExtensionFactory(createDeferredResultExtension(deferredResultStore));
+await engine.registerExtensionFactory(
+  createDeferredResultExtension(deferredResultStore, deferredResultCoordinator),
+);
 // Compaction guard — 防 session 因上下文超限死锁（issue#437）
 await engine.registerExtensionFactory(createCompactionGuardExtension());
 
