@@ -92,6 +92,19 @@ export class PreferencesManager {
     this.savePreferences(prefs);
   }
 
+  /** 读取沙盒内自定义可写路径列表。 */
+  getSandboxWritablePaths() {
+    const raw = this._cache.sandbox_writable_paths;
+    return Array.isArray(raw) ? raw : [];
+  }
+
+  /** 保存沙盒内自定义可写路径列表。 */
+  setSandboxWritablePaths(paths) {
+    const prefs = this._mutableCopy();
+    prefs.sandbox_writable_paths = Array.isArray(paths) ? paths : [];
+    this.savePreferences(prefs);
+  }
+
   /** 读取新会话默认权限模式。首次安装没有该字段时默认 ask。 */
   getSessionPermissionModeDefault() {
     return normalizeSessionPermissionMode({ permissionMode: this._cache.session_permission_mode_default });
