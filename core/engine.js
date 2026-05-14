@@ -88,6 +88,7 @@ import { workspaceRootsForSandbox } from "../shared/workspace-scope.js";
 import { wrapWithCheckpoint } from "../lib/checkpoint-wrapper.js";
 import { wrapWithSessionPermission } from "../lib/tools/session-permission-wrapper.js";
 import { TaskRegistry } from "../lib/task-registry.js";
+import { PluginInstallRecords } from "../lib/plugin-install-records.js";
 import { ComputerHost } from "./computer-use/computer-host.js";
 import { ComputerProviderRegistry } from "./computer-use/provider-registry.js";
 import { createMockComputerProvider } from "./computer-use/providers/mock-provider.js";
@@ -114,6 +115,7 @@ export class HanaEngine {
   constructor({ hanakoHome, productDir, agentId }) {
     this.hanakoHome = hanakoHome;
     this.productDir = productDir;
+    this.appVersion = "0.0.0";
     this.agentsDir = path.join(hanakoHome, "agents");
     this.userDir = path.join(hanakoHome, "user");
     this.channelsDir = path.join(hanakoHome, "channels");
@@ -121,6 +123,7 @@ export class HanaEngine {
     this._sessionFiles = new SessionFileRegistry({
       managedCacheRoot: path.join(hanakoHome, "session-files"),
     });
+    this._pluginInstallRecords = new PluginInstallRecords({ hanakoHome });
 
     // ── Core managers ──
     this._prefs = new PreferencesManager({ userDir: this.userDir, agentsDir: this.agentsDir });
@@ -652,6 +655,8 @@ export class HanaEngine {
   setPluginUiPrefs(partial) { return this._prefs.setPluginUiPrefs(partial); }
   getPluginDevToolsEnabled() { return this._prefs.getPluginDevToolsEnabled(); }
   setPluginDevToolsEnabled(value) { return this._prefs.setPluginDevToolsEnabled(value); }
+  getPluginInstallRecord(pluginId) { return this._pluginInstallRecords.get(pluginId); }
+  recordPluginInstall(record) { return this._pluginInstallRecords.recordInstall(record); }
   getTimezone() { return this._prefs.getTimezone(); }
   setTimezone(tz) { this._prefs.setTimezone(tz); }
   getUpdateChannel() { return this._prefs.getUpdateChannel(); }
@@ -1138,6 +1143,7 @@ export class HanaEngine {
       const pkgPath = path.join(this.productDir, "..", "package.json");
       appVersion = JSON.parse(fs.readFileSync(pkgPath, "utf-8")).version || "0.0.0";
     } catch {}
+    this.appVersion = appVersion;
 
     this._pluginManager = new PluginManager({
       pluginsDirs: [builtinPluginsDir, userPluginsDir],
