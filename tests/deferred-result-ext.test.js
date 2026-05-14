@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createDeferredResultExtension } from "../lib/extensions/deferred-result-ext.js";
 import { DeferredResultStore } from "../lib/deferred-result-store.js";
 
@@ -16,13 +16,23 @@ function createMockPi() {
 }
 
 describe("DeferredResultExtension", () => {
-  let store, pi, factory;
+  let store, pi, factory, coordinator;
 
   beforeEach(() => {
+    vi.useFakeTimers();
     store = new DeferredResultStore();
-    factory = createDeferredResultExtension(store);
+    coordinator = {
+      bindSession: vi.fn(),
+      unbindSession: vi.fn(),
+      enqueueTask: vi.fn(),
+    };
+    factory = createDeferredResultExtension(store, coordinator);
     pi = createMockPi();
     factory(pi);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("subscribes to session_start and session_shutdown", () => {
@@ -30,65 +40,46 @@ describe("DeferredResultExtension", () => {
     expect(pi.on).toHaveBeenCalledWith("session_shutdown", expect.any(Function));
   });
 
-  it("sends notification when task resolves for matching session", () => {
+  it("binds and unbinds the live session around lifecycle events", () => {
+    pi._trigger("session_start", {}, { sessionManager: { getSessionFile: () => "/s/a" } });
+    pi._trigger("session_shutdown");
+
+    expect(coordinator.bindSession).toHaveBeenCalledWith("/s/a", pi);
+    expect(coordinator.unbindSession).toHaveBeenCalledWith("/s/a");
+  });
+
+  it("enqueues undelivered tasks on session_start", () => {
     pi._trigger("session_start", {}, { sessionManager: { getSessionFile: () => "/s/a" } });
     store.defer("t1", "/s/a", { type: "image-generation" });
     store.resolve("t1", { files: ["img.png"] });
+    vi.advanceTimersByTime(500);
 
-    expect(pi.sendMessage).toHaveBeenCalledTimes(1);
-    const [msg, opts] = pi.sendMessage.mock.calls[0];
-    expect(msg.customType).toBe("hana-background-result");
-    expect(msg.content).toContain("task-id=\"t1\"");
-    expect(msg.content).toContain("status=\"success\"");
-    expect(opts.deliverAs).toBe("steer");
-    expect(opts.triggerTurn).toBe(true);
+    expect(coordinator.enqueueTask).toHaveBeenCalledWith(
+      "t1",
+      expect.objectContaining({ status: "resolved", sessionPath: "/s/a" }),
+    );
   });
 
-  it("does NOT send notification for a different session", () => {
+  it("does NOT enqueue notifications for a different session during cold-start scan", () => {
     pi._trigger("session_start", {}, { sessionManager: { getSessionFile: () => "/s/a" } });
     store.defer("t1", "/s/b", { type: "image-generation" });
     store.resolve("t1", { files: [] });
-    expect(pi.sendMessage).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(500);
+    expect(coordinator.enqueueTask).not.toHaveBeenCalled();
   });
 
-  it("sends failure notification", () => {
+  it("does not subscribe to live resolve/fail events per session", () => {
     pi._trigger("session_start", {}, { sessionManager: { getSessionFile: () => "/s/a" } });
     store.defer("t1", "/s/a", { type: "image-generation" });
     store.fail("t1", "credit exhausted");
 
-    expect(pi.sendMessage).toHaveBeenCalledTimes(1);
-    const [msg] = pi.sendMessage.mock.calls[0];
-    expect(msg.content).toContain("status=\"failed\"");
-    expect(msg.content).toContain("credit exhausted");
+    expect(coordinator.enqueueTask).not.toHaveBeenCalled();
   });
 
   it("unsubscribes on session_shutdown", () => {
     pi._trigger("session_start", {}, { sessionManager: { getSessionFile: () => "/s/a" } });
     pi._trigger("session_shutdown");
 
-    store.defer("t2", "/s/a", {});
-    store.resolve("t2", {});
-    expect(pi.sendMessage).not.toHaveBeenCalled();
-  });
-
-  it("catches sendMessage errors without breaking", () => {
-    pi._trigger("session_start", {}, { sessionManager: { getSessionFile: () => "/s/a" } });
-    pi.sendMessage.mockImplementation(() => {
-      throw new Error("boom");
-    });
-
-    store.defer("t1", "/s/a", {});
-    expect(() => store.resolve("t1", {})).not.toThrow();
-  });
-
-  it("escapes XML special characters in content", () => {
-    pi._trigger("session_start", {}, { sessionManager: { getSessionFile: () => "/s/a" } });
-    store.defer("t1", "/s/a", { type: "test" });
-    store.resolve("t1", { message: "a < b & c > d" });
-
-    const [msg] = pi.sendMessage.mock.calls[0];
-    expect(msg.content).not.toContain("< b");
-    expect(msg.content).toContain("&lt;");
-    expect(msg.content).toContain("&amp;");
+    expect(coordinator.unbindSession).toHaveBeenCalledWith("/s/a");
   });
 });
