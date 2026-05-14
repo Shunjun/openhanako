@@ -609,7 +609,26 @@
       "sharing": "分享",
       "plugins": "插件",
       "about": "關於",
-      "security": "安全"
+      "security": "安全",
+      "network": "網路"
+    },
+    "network": {
+      "proxy": "代理",
+      "enableProxy": "啟用代理",
+      "enableProxyHint": "透過代理伺服器存取外部網路（如 LLM API）",
+      "proxyUrl": "代理位址",
+      "proxyUrlHint": "支援 http://、https://、socks5://",
+      "proxyUsername": "使用者名稱",
+      "proxyPassword": "密碼",
+      "noProxy": "不代理位址",
+      "noProxyHint": "逗號分隔，如 localhost,127.0.0.1",
+      "optional": "可選",
+      "testConnection": "測試連線",
+      "testBtn": "測試",
+      "testing": "測試中…",
+      "testSuccess": "連線成功，出口 IP: {ip}",
+      "testFailed": "連線失敗",
+      "proxyUrlRequired": "請填寫代理位址"
     },
     "computerUse": {
       "title": "電腦控制",

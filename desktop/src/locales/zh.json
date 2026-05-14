@@ -617,7 +617,26 @@
       "sharing": "分享",
       "plugins": "插件",
       "about": "关于",
-      "security": "安全"
+      "security": "安全",
+      "network": "网络"
+    },
+    "network": {
+      "proxy": "代理",
+      "enableProxy": "启用代理",
+      "enableProxyHint": "通过代理服务器访问外部网络（如 LLM API）",
+      "proxyUrl": "代理地址",
+      "proxyUrlHint": "支持 http://、https://、socks5://",
+      "proxyUsername": "用户名",
+      "proxyPassword": "密码",
+      "noProxy": "不代理地址",
+      "noProxyHint": "逗号分隔，如 localhost,127.0.0.1",
+      "optional": "可选",
+      "testConnection": "测试连接",
+      "testBtn": "测试",
+      "testing": "测试中…",
+      "testSuccess": "连接成功，出口 IP: {ip}",
+      "testFailed": "连接失败",
+      "proxyUrlRequired": "请填写代理地址"
     },
     "appearance": {
       "title": "外观",
