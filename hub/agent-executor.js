@@ -22,7 +22,6 @@ import {
   getAgentPhoneSessionDir,
   getAgentPhoneRefreshDate,
   shouldCompactAgentPhoneSession,
-  shouldRefreshAgentPhoneSession,
 } from "../lib/conversations/agent-phone-session.js";
 import {
   ensureAgentPhoneProjection,
@@ -30,6 +29,11 @@ import {
   updateAgentPhoneProjectionMeta,
 } from "../lib/conversations/agent-phone-projection.js";
 import { findModel, requireModelRef } from "../shared/model-ref.js";
+import {
+  buildFreshCompactMetaPatch,
+  buildFreshCompactSnapshot,
+  shouldRunFreshCompact,
+} from "../lib/fresh-compact/policy.js";
 
 function resolveAgentPhoneModel(engine, ctx, agentConfig, modelOverride) {
   if (!modelOverride) return ctx.resolveModel(agentConfig);
@@ -220,6 +224,170 @@ async function maybeCompactPhoneSession(session, { isActive = false, onActivity 
   return { reason, before: usage, after };
 }
 
+async function maybeFreshCompactPhoneSession(session, {
+  agentDir,
+  agentId,
+  conversationId,
+  conversationType,
+  projectionMeta = {},
+  snapshot,
+  now = new Date(),
+  reason: explicitReason = null,
+  onActivity,
+} = {}) {
+  const decision = shouldRunFreshCompact({
+    meta: projectionMeta,
+    snapshot,
+    now,
+    force: explicitReason === "manual",
+  });
+  if (!decision.run) return null;
+  if (session.isCompacting) return null;
+
+  const reason = explicitReason || decision.reason;
+  const before = session.getContextUsage?.() ?? null;
+  await onActivity?.(
+    "compacting",
+    reason === "daily" ? "正在按日刷新压缩手机会话" : "正在刷新压缩手机会话",
+    {
+      reason,
+      tokensBefore: before?.tokens ?? null,
+      contextWindow: before?.contextWindow ?? null,
+    },
+  );
+  await session.compact();
+  const after = session.getContextUsage?.() ?? null;
+  const usage = {
+    tokensBefore: before?.tokens ?? null,
+    tokensAfter: after?.tokens ?? null,
+    contextWindow: after?.contextWindow ?? before?.contextWindow ?? null,
+  };
+  const patch = buildFreshCompactMetaPatch({
+    snapshot,
+    reason,
+    now,
+    usage,
+  });
+  await updateAgentPhoneProjectionMeta({
+    agentDir,
+    agentId,
+    conversationId,
+    conversationType,
+    patch,
+  });
+  await onActivity?.(
+    "idle",
+    "手机会话刷新压缩完成",
+    {
+      reason,
+      ...usage,
+    },
+  );
+  return { reason, ...usage };
+}
+
+export async function freshCompactAgentPhoneSession(agentId, {
+  engine,
+  conversationId,
+  conversationType = "channel",
+  toolMode = "read_only",
+  modelOverride = null,
+  now = new Date(),
+  reason = "daily",
+  onActivity,
+} = {}) {
+  if (!conversationId) throw new Error("conversationId is required for agent phone fresh compact");
+
+  const agent = engine.getAgent(agentId);
+  if (!agent) {
+    throw new Error(t("error.agentExecNotInit", { id: agentId }));
+  }
+  const agentDir = agent.agentDir;
+  const projectionPath = await ensureAgentPhoneProjection({
+    agentDir,
+    agentId,
+    conversationId,
+    conversationType,
+  });
+  const projection = readAgentPhoneProjection(projectionPath);
+  const existingSessionPath = resolveStoredSessionPath(agentDir, projection.meta.phoneSessionFile);
+  if (!existingSessionPath || !fs.existsSync(existingSessionPath)) {
+    throw new Error(`agent phone fresh compact: session file missing for ${conversationId}`);
+  }
+
+  const ctx = engine.createSessionContext();
+  const tempResourceLoader = Object.create(ctx.resourceLoader);
+  const basePrompt = agent.systemPrompt;
+  tempResourceLoader.getSystemPrompt = () => basePrompt;
+  tempResourceLoader.getSkills = () => ctx.getSkillsForAgent(agent);
+
+  const cwd = engine.getHomeCwd(agentId) || process.cwd();
+  const sessionDir = getAgentPhoneSessionDir(agentDir, conversationId);
+  fs.mkdirSync(sessionDir, { recursive: true });
+  const sessionManager = SessionManager.open(existingSessionPath, sessionDir);
+
+  const agentToolsSnapshot = typeof agent.getToolsSnapshot === "function"
+    ? agent.getToolsSnapshot({
+      forceMemoryEnabled: agent.memoryMasterEnabled !== false,
+      ...(typeof agent.experienceEnabled === "boolean"
+        ? { forceExperienceEnabled: agent.experienceEnabled === true }
+        : {}),
+    })
+    : agent.tools;
+  const phonePermissionMode = getAgentPhonePermissionMode(toolMode);
+  const built = ctx.buildTools(cwd, agentToolsSnapshot, {
+    agentDir,
+    workspace: engine.getHomeCwd(agentId),
+    getSessionPath: () => sessionManager?.getSessionFile?.() || null,
+    getPermissionMode: () => phonePermissionMode,
+  });
+  const { tools, customTools } = filterAgentPhoneTools(built);
+  const model = resolveAgentPhoneModel(engine, ctx, agent.config, modelOverride);
+  const { session } = await createAgentSession({
+    cwd,
+    sessionManager,
+    settingsManager: createDefaultSettings(),
+    authStorage: ctx.authStorage,
+    modelRegistry: ctx.modelRegistry,
+    model,
+    thinkingLevel: "medium",
+    resourceLoader: tempResourceLoader,
+    tools,
+    customTools,
+  });
+  session.setActiveToolsByName?.(getAgentPhoneActiveToolNames({ tools, customTools }));
+
+  const snapshot = buildFreshCompactSnapshot({
+    systemPrompt: basePrompt,
+    state: {
+      conversationType,
+      memoryEnabled: agent.memoryMasterEnabled !== false,
+      model: modelOverride || agent.config?.models?.chat || null,
+      toolMode,
+    },
+  });
+
+  try {
+    return await maybeFreshCompactPhoneSession(session, {
+      agentDir,
+      agentId,
+      conversationId,
+      conversationType,
+      projectionMeta: projection.meta,
+      snapshot,
+      now,
+      reason,
+      onActivity,
+    });
+  } finally {
+    await teardownSessionResources({
+      session,
+      label: `hub.freshCompactAgentPhoneSession[${agentId}:${conversationId}]`,
+      warn: (msg) => debugLog()?.warn("agent-executor", msg),
+    });
+  }
+}
+
 /**
  * 以 Agent Phone 方式运行可复用会话。
  *
@@ -275,8 +443,8 @@ export async function runAgentPhoneSession(agentId, rounds, {
   const existingSessionPath = resolveStoredSessionPath(agentDir, projection.meta.phoneSessionFile);
   const refreshNow = new Date();
   const refreshDate = getAgentPhoneRefreshDate(refreshNow);
-  const shouldRefresh = shouldRefreshAgentPhoneSession(projection.meta, refreshNow);
-  const sessionManager = !shouldRefresh && existingSessionPath && fs.existsSync(existingSessionPath)
+  const openedExistingSession = existingSessionPath && fs.existsSync(existingSessionPath);
+  const sessionManager = openedExistingSession
     ? SessionManager.open(existingSessionPath, sessionDir)
     : SessionManager.create(cwd, sessionDir);
 

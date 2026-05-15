@@ -456,6 +456,13 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
       broadcast({ type: "bridge_message", message: event.message });
     } else if (event.type === "bridge_status") {
       broadcast({ type: "bridge_status", platform: event.platform, status: event.status, error: event.error, agentId: event.agentId || null });
+    } else if (event.type === "session_branch_reset") {
+      if (!ss) return;
+      emitStreamEvent(sessionPath, ss, {
+        type: "session_branch_reset",
+        messageId: event.messageId || null,
+        clientMessageId: event.clientMessageId || null,
+      });
     } else if (event.type === "session_user_message") {
       if (!ss) return;
       emitStreamEvent(sessionPath, ss, { type: "session_user_message", message: event.message });

@@ -30,7 +30,7 @@ vi.mock("../lib/pi-sdk/index.js", async (importOriginal) => {
 });
 
 import { runAgentSession } from "../hub/agent-executor.js";
-import { runAgentPhoneSession } from "../hub/agent-executor.js";
+import { freshCompactAgentPhoneSession, runAgentPhoneSession } from "../hub/agent-executor.js";
 import { getAgentPhoneProjectionPath, readAgentPhoneProjection, updateAgentPhoneProjectionMeta } from "../lib/conversations/agent-phone-projection.js";
 import { getAgentPhoneSessionDir } from "../lib/conversations/agent-phone-session.js";
 
@@ -386,7 +386,7 @@ describe("runAgentSession teardown", () => {
     expect(resolveModel).not.toHaveBeenCalled();
   });
 
-  it("refreshes a reused phone session once per local day", async () => {
+  it("keeps phone replies non-blocking and leaves daily fresh-compact to the background path", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-12T10:00:00"));
     const cwd = path.join(rootDir, "cwd");
@@ -411,16 +411,23 @@ describe("runAgentSession teardown", () => {
     });
 
     const oldManager = { getSessionFile: () => oldSessionFile };
-    const newManager = { getSessionFile: () => newSessionFile };
     sessionManagerOpenMock.mockReturnValue(oldManager);
-    sessionManagerCreateMock.mockReturnValue(newManager);
+    sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => newSessionFile });
+    const compact = vi.fn(async () => {});
+    const getContextUsage = vi.fn()
+      .mockReturnValueOnce({ tokens: 10, contextWindow: 200000 })
+      .mockReturnValueOnce({ tokens: 10, contextWindow: 200000 })
+      .mockReturnValueOnce({ tokens: 130000, contextWindow: 200000 })
+      .mockReturnValueOnce({ tokens: 48000, contextWindow: 200000 })
+      .mockReturnValue({ tokens: 10, contextWindow: 200000 });
     createAgentSessionMock.mockImplementation(async (options) => ({
       session: {
         prompt: vi.fn(async () => {}),
         subscribe: vi.fn(() => () => {}),
         dispose: vi.fn(),
         sessionManager: options.sessionManager,
-        getContextUsage: vi.fn(() => ({ tokens: 10, contextWindow: 200000 })),
+        getContextUsage,
+        compact,
         extensionRunner: { hasHandlers: vi.fn(() => false) },
       },
     }));
@@ -431,27 +438,42 @@ describe("runAgentSession teardown", () => {
       conversationType: "channel",
     });
 
-    expect(sessionManagerOpenMock).not.toHaveBeenCalled();
-    expect(sessionManagerCreateMock).toHaveBeenCalledOnce();
+    expect(sessionManagerOpenMock).toHaveBeenCalledWith(oldSessionFile, path.dirname(oldSessionFile));
+    expect(sessionManagerCreateMock).not.toHaveBeenCalled();
+    expect(compact).not.toHaveBeenCalled();
     const projectionPath = getAgentPhoneProjectionPath(agent.agentDir, "ch_crew");
     let projection = readAgentPhoneProjection(projectionPath);
-    expect(projection.meta).toMatchObject({
-      phoneSessionFile: path.relative(agent.agentDir, newSessionFile).split(path.sep).join("/"),
-      lastRefreshedDate: "2026-05-12",
+    expect(projection.meta.phoneSessionFile).toBe(path.relative(agent.agentDir, oldSessionFile).split(path.sep).join("/"));
+    expect(projection.meta.lastFreshCompactDate).toBeUndefined();
+
+    await freshCompactAgentPhoneSession("agent-a", {
+      engine,
+      conversationId: "ch_crew",
+      conversationType: "channel",
+      now: new Date("2026-05-12T10:00:00"),
+      reason: "daily",
     });
+
+    expect(compact).toHaveBeenCalledOnce();
+    projection = readAgentPhoneProjection(projectionPath);
+    expect(projection.meta.lastFreshCompactDate).toBe("2026-05-12");
+    expect(projection.meta.freshCompactTokensBefore).toBe("130000");
+    expect(projection.meta.freshCompactTokensAfter).toBe("48000");
 
     fs.writeFileSync(newSessionFile, "new", "utf-8");
     sessionManagerOpenMock.mockClear();
     sessionManagerCreateMock.mockClear();
+    compact.mockClear();
     await runAgentPhoneSession("agent-a", [{ text: "hello again", capture: true }], {
       engine,
       conversationId: "ch_crew",
       conversationType: "channel",
     });
 
-    expect(sessionManagerOpenMock).toHaveBeenCalledWith(newSessionFile, path.dirname(newSessionFile));
+    expect(sessionManagerOpenMock).toHaveBeenCalledWith(oldSessionFile, path.dirname(oldSessionFile));
     expect(sessionManagerCreateMock).not.toHaveBeenCalled();
     projection = readAgentPhoneProjection(projectionPath);
-    expect(projection.meta.lastRefreshedDate).toBe("2026-05-12");
+    expect(projection.meta.lastFreshCompactDate).toBe("2026-05-12");
+    expect(compact).not.toHaveBeenCalled();
   });
 });

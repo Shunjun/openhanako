@@ -320,7 +320,7 @@ describe("openai codex oauth adapter", () => {
 
     const body = JSON.parse(opts.body);
     expect(body.model).toBe("gpt-5.5");
-    expect(body.stream).toBe(false);
+    expect(body.stream).toBe(true);
     expect(body.store).toBe(false);
     expect(body.input[0].content[0]).toEqual({
       type: "input_text",
@@ -360,6 +360,48 @@ describe("openai codex oauth adapter", () => {
 
     const [, opts] = mockFetch.mock.calls[0];
     expect(opts.headers["chatgpt-account-id"]).toBe("acct_from_token");
+  });
+
+  it("parses Codex streaming image_generation_call results", async () => {
+    const { openaiCodexImageAdapter } = await import("../plugins/image-gen/adapters/openai-codex.js");
+
+    const fakeB64 = Buffer.from("fake-codex-stream-image").toString("base64");
+    const encoder = new TextEncoder();
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: "response.output_item.done",
+            item: { type: "image_generation_call", result: fakeB64 },
+          })}\n\n`));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      }),
+    });
+
+    const ctx = makeBusCtx("oauth-token", "https://chatgpt.com/backend-api", "openai-codex-oauth");
+    ctx.bus.request = vi.fn(async (type, payload) => {
+      if (type === "provider:credentials" && payload.providerId === "openai-codex-oauth") {
+        return {
+          apiKey: "oauth-token",
+          baseUrl: "https://chatgpt.com/backend-api",
+          api: "openai-codex-responses",
+          accountId: "acct_123",
+        };
+      }
+      return { error: "not_found" };
+    });
+
+    const result = await openaiCodexImageAdapter.submit({
+      prompt: "a quiet notebook",
+      format: "png",
+    }, ctx);
+
+    const [, opts] = mockFetch.mock.calls[0];
+    expect(JSON.parse(opts.body).stream).toBe(true);
+    expect(result.files).toHaveLength(1);
   });
 
   it("requires a decodable Codex account id for ChatGPT backend requests", async () => {

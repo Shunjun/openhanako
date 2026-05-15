@@ -726,6 +726,7 @@ export class HanaEngine {
   injectBridgeMessage(sk, t) { return this._bridge.injectMessage(sk, t); }
   /** 对指定 bridge session 执行真正的上下文压缩；返回 { tokensBefore, tokensAfter, contextWindow } */
   async compactBridgeSession(sessionKey, opts) { return this._bridge.compactSession(sessionKey, opts); }
+  async freshCompactBridgeSession(sessionKey, opts) { return this._bridge.freshCompactSession(sessionKey, opts); }
   /**
    * 对桌面 session 做上下文压缩；返回 { tokensBefore, tokensAfter, contextWindow }
    * 供 /compact 在 /rc 接管态下给出 token delta 反馈（Phase 2-E）

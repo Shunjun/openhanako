@@ -40,8 +40,17 @@ describe("classifyWin32Command", () => {
     expect(classifyWin32Command('python -c "import sys; print(sys.version)"', { resolveNativePath }).runner).toBe("python");
   });
 
+  it("routes simple Node commands to the structured node runner", () => {
+    expect(classifyWin32Command("node server.js", { resolveNativePath }).runner).toBe("node");
+    expect(classifyWin32Command('node -e "console.log(process.version)"', { resolveNativePath }).runner).toBe("node");
+  });
+
   it("keeps shell-shaped Python commands on the bash path", () => {
     expect(classifyWin32Command("python script.py > out.txt", { resolveNativePath }).runner).toBe("bash");
+  });
+
+  it("keeps shell-shaped Node commands on the bash path", () => {
+    expect(classifyWin32Command("node server.js > out.txt", { resolveNativePath }).runner).toBe("bash");
   });
 
   it("keeps complex POSIX commands on the bash path", () => {
