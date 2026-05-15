@@ -60,6 +60,26 @@ function resolveRequestReasoningLevel(models, prefs, ctx) {
     : (sessionThinkingLevel || preferenceThinkingLevel);
 }
 
+function resolveChannelsEnabledForToolAvailability(engine) {
+  try {
+    if (
+      Object.prototype.hasOwnProperty.call(engine, "isChannelsEnabled")
+      && typeof engine.isChannelsEnabled === "function"
+    ) {
+      return engine.isChannelsEnabled();
+    }
+    if (typeof engine._configCoord?.getChannelsEnabled === "function") {
+      return engine._configCoord.getChannelsEnabled();
+    }
+    if (typeof engine._prefs?.getChannelsEnabled === "function") {
+      return engine._prefs.getChannelsEnabled();
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 import { PreferencesManager } from "./preferences-manager.js";
 import { ModelManager } from "./model-manager.js";
 import { SkillManager } from "./skill-manager.js";
@@ -87,6 +107,7 @@ import { assertAllToolsCategorized } from "../shared/tool-categories.js";
 import { workspaceRootsForSandbox } from "../shared/workspace-scope.js";
 import { wrapWithCheckpoint } from "../lib/checkpoint-wrapper.js";
 import { wrapWithSessionPermission } from "../lib/tools/session-permission-wrapper.js";
+import { filterToolObjectsByAvailability } from "./tool-availability.js";
 import { TaskRegistry } from "../lib/task-registry.js";
 import { PluginInstallRecords } from "../lib/plugin-install-records.js";
 import { ComputerHost } from "./computer-use/computer-host.js";
@@ -1240,6 +1261,7 @@ export class HanaEngine {
   buildTools(cwd, customTools, opts = {}) {
     let ct = customTools;
     let agentId;
+    let toolAgent;
     if (!ct) {
       // 通过 opts.agentDir 反查 agent 实例，避免隐式依赖焦点 agent
       if (opts.agentDir) {
@@ -1248,12 +1270,15 @@ export class HanaEngine {
         if (!dirAgent) throw new Error(`buildTools: agent "${dirAgentId}" not found`);
         ct = dirAgent.tools;
         agentId = dirAgentId;
+        toolAgent = dirAgent;
       } else {
         ct = this.agent.tools;
         agentId = this.agent?.id || "";
+        toolAgent = this.agent;
       }
     } else {
       agentId = opts.agentDir ? path.basename(opts.agentDir) : (this.agent?.id || "");
+      toolAgent = opts.agentDir ? this.getAgent(agentId) : this.agent;
     }
     // Append plugin tools
     const pluginTools = this._pluginManager?.getAllTools() || [];
@@ -1267,7 +1292,15 @@ export class HanaEngine {
           getAgentId: () => agentId,
         })
       : [];
-    const allTools = [...ct, ...wrappedPluginTools, ...pluginDevTools];
+    const allTools = filterToolObjectsByAvailability(
+      [...ct, ...wrappedPluginTools, ...pluginDevTools],
+      toolAgent?.config || {},
+      {
+        agentId,
+        channelsEnabled: resolveChannelsEnabledForToolAvailability(this),
+      },
+      { warn: (msg) => console.warn(`[tool-availability] ${msg}`) },
+    );
 
     const effectiveAgentDir = opts.agentDir || this.agent.agentDir;
     const effectiveWorkspace = opts.workspace !== undefined ? opts.workspace : this.homeCwd;

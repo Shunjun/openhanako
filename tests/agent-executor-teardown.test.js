@@ -160,6 +160,55 @@ describe("runAgentSession teardown", () => {
     expect(createAgentSessionMock.mock.calls[0][0].customTools.map((tool) => tool.name)).toContain("search_memory");
   });
 
+  it("hub read-only temp sessions keep full schema and enforce read-only at execution time", async () => {
+    const cwd = path.join(rootDir, "cwd");
+    fs.mkdirSync(cwd, { recursive: true });
+    const agent = makeAgent(rootDir);
+    agent.tools = [{ name: "search_memory" }, { name: "record_experience" }];
+
+    const buildTools = vi.fn((_cwd, customTools) => ({
+      tools: [{ name: "read" }, { name: "write" }],
+      customTools,
+    }));
+    const engine = {
+      ...makeEngine(agent, cwd),
+      createSessionContext: () => ({
+        resourceLoader: {},
+        getSkillsForAgent: () => ({ skills: [], diagnostics: [] }),
+        buildTools,
+        resolveModel: () => ({ id: "gpt-4o", provider: "openai", name: "GPT-4o" }),
+        authStorage: {},
+        modelRegistry: {},
+      }),
+    };
+    const sessionFile = path.join(agent.agentDir, "sessions", "temp", "s-read-only-tools.jsonl");
+    fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
+    fs.writeFileSync(sessionFile, "", "utf-8");
+    sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => sessionFile });
+    createAgentSessionMock.mockResolvedValue({
+      session: {
+        prompt: vi.fn(async () => {}),
+        subscribe: vi.fn(() => () => {}),
+        dispose: vi.fn(),
+        sessionManager: { getSessionFile: () => sessionFile },
+        extensionRunner: { hasHandlers: vi.fn(() => false) },
+      },
+    });
+
+    await runAgentSession("agent-a", [{ text: "hello", capture: true }], { engine, readOnly: true });
+
+    const buildOpts = buildTools.mock.calls[0][2];
+    expect(buildOpts.getPermissionMode()).toBe("read_only");
+    expect(createAgentSessionMock.mock.calls[0][0].tools.map((tool) => tool.name)).toEqual([
+      "read",
+      "write",
+    ]);
+    expect(createAgentSessionMock.mock.calls[0][0].customTools.map((tool) => tool.name)).toEqual([
+      "search_memory",
+      "record_experience",
+    ]);
+  });
+
   it("phone session exposes its session path and mirrors live stream events", async () => {
     const cwd = path.join(rootDir, "cwd");
     fs.mkdirSync(cwd, { recursive: true });
@@ -223,11 +272,11 @@ describe("runAgentSession teardown", () => {
     const cwd = path.join(rootDir, "cwd");
     fs.mkdirSync(cwd, { recursive: true });
     const agent = makeAgent(rootDir);
-    agent.tools = [{ name: "channel" }, { name: "search_memory" }];
+    agent.tools = [{ name: "channel" }, { name: "search_memory" }, { name: "record_experience" }];
     agent.getToolsSnapshot = vi.fn(() => agent.tools);
 
     const buildTools = vi.fn((_cwd, customTools) => ({
-      tools: [],
+      tools: [{ name: "read" }, { name: "write" }],
       customTools,
     }));
     const engine = {
@@ -245,11 +294,13 @@ describe("runAgentSession teardown", () => {
     fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
     fs.writeFileSync(sessionFile, "", "utf-8");
     sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => sessionFile });
+    const setActiveToolsByName = vi.fn();
     createAgentSessionMock.mockResolvedValue({
       session: {
         prompt: vi.fn(async () => {}),
         subscribe: vi.fn(() => () => {}),
         dispose: vi.fn(),
+        setActiveToolsByName,
         sessionManager: { getSessionFile: () => sessionFile },
         getContextUsage: vi.fn(() => ({ tokens: 10, contextWindow: 200000 })),
         extensionRunner: { hasHandlers: vi.fn(() => false) },
@@ -267,8 +318,23 @@ describe("runAgentSession teardown", () => {
       ],
     });
 
+    const buildOpts = buildTools.mock.calls[0][2];
+    expect(buildOpts.getPermissionMode()).toBe("read_only");
+    expect(createAgentSessionMock.mock.calls[0][0].tools.map((tool) => tool.name)).toEqual([
+      "read",
+      "write",
+    ]);
     expect(createAgentSessionMock.mock.calls[0][0].customTools.map((tool) => tool.name)).toEqual([
       "search_memory",
+      "record_experience",
+      "channel_reply",
+      "channel_pass",
+    ]);
+    expect(setActiveToolsByName).toHaveBeenCalledWith([
+      "read",
+      "write",
+      "search_memory",
+      "record_experience",
       "channel_reply",
       "channel_pass",
     ]);

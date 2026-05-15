@@ -9,7 +9,6 @@ import path from "path";
 import { createAgentSession, SessionManager } from "../lib/pi-sdk/index.js";
 import { createDefaultSettings } from "./session-defaults.js";
 import { debugLog } from "../lib/debug-log.js";
-import { READ_ONLY_BUILTIN_TOOLS } from "./config-coordinator.js";
 import { t, getLocale } from "../server/i18n.js";
 import { safeReadJSON } from "../shared/safe-fs.js";
 import { findModel } from "../shared/model-ref.js";
@@ -645,14 +644,6 @@ export class BridgeSessionManager {
       },
     );
 
-    const bridgeTools = bridgeReadOnly
-      ? baseTools.filter(t => READ_ONLY_BUILTIN_TOOLS.includes(t.name))
-      : baseTools;
-    const safeCustomNames = ["search_memory", "web_search", "web_fetch", "stage_files"];
-    const bridgeCustomTools = bridgeReadOnly
-      ? (baseCustomTools || []).filter(t => safeCustomNames.includes(t.name))
-      : baseCustomTools;
-
     // 使用 agent 配置的模型（必须是带 provider 的复合键对象）
     const ownerRef = agent.config?.models?.chat;
     const ref = (typeof ownerRef === "object" && ownerRef?.id && ownerRef?.provider) ? ownerRef : null;
@@ -695,8 +686,8 @@ export class BridgeSessionManager {
       model: ownerModel,
       thinkingLevel: mm.resolveThinkingLevel(prefs?.thinking_level || "auto"),
       resourceLoader: visionResourceLoader,
-      tools: bridgeTools,
-      customTools: bridgeCustomTools,
+      tools: baseTools,
+      customTools: baseCustomTools,
       settingsManager: this._createSettings(ownerModel),
     };
   }

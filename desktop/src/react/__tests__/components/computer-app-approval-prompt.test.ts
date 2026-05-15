@@ -319,7 +319,7 @@ describe('computer app approval prompt', () => {
     expect(screen.queryByRole('button', { name: '更多确认选项' })).toBeNull();
   });
 
-  it('keeps the input confirmation as a short card sliding from behind the input box', () => {
+  it('keeps the input confirmation as a same-width card sliding from behind the input box', () => {
     const css = fs.readFileSync(
       path.join(process.cwd(), 'desktop/src/react/components/input/InputArea.module.css'),
       'utf8',
@@ -334,10 +334,11 @@ describe('computer app approval prompt', () => {
 
     expect(inputSource).toContain("styles['input-stack']");
     expect(stackBlock).toMatch(/width:\s*100%/);
-    expect(promptBlock).toMatch(/width:\s*calc\(100%\s*-\s*4rem\)/);
+    expect(promptBlock).toMatch(/width:\s*100%/);
+    expect(promptBlock).toMatch(/max-width:\s*100%/);
     expect(promptBlock).toMatch(/background:\s*var\(--bg-card\)/);
     expect(promptBlock).toMatch(/border-radius:\s*var\(--radius-chat-card\)/);
-    expect(promptBlock).toMatch(/margin:\s*0 auto -2rem/);
+    expect(promptBlock).toMatch(/margin:\s*0 0 -2rem/);
     expect(promptBlock).not.toContain('color-mix');
     expect(promptBlock).not.toContain('border-bottom-color: transparent');
     expect(inputWrapperBlock).toMatch(/position:\s*relative/);

@@ -146,7 +146,11 @@
     "edit": "編集",
     "screenshot": "スクリーンショット",
     "selectMessage": "メッセージを選択",
+    "selectAllMessages": "すべてのメッセージを選択",
+    "screenshotInProgress": "スクリーンショットを作成中",
+    "screenshotProgressPage": "スクリーンショットを作成中、{current}/{total} ページ",
     "screenshotSaved": "スクリーンショットを作業ディレクトリの「截图」フォルダに保存しました",
+    "screenshotSavedMultiple": "スクリーンショットを {count} 枚に分けて作業ディレクトリの「截图」フォルダに保存しました",
     "screenshotFailed": "スクリーンショットの保存に失敗しました",
     "selectedCount": "{count} 件選択中",
     "allDone": "すべて完了",
@@ -757,7 +761,7 @@
       "yuanHint": "「元」はエージェントの潜在意識です。この土台からあなただけのパートナーを作り上げてください。",
       "tools": {
         "title": "ツール",
-        "description": "変更は新しいセッションにのみ適用されます。進行中のセッションは作成時のツールセットを使い続けます。",
+        "description": "ツールの切り替えは、会話を再開するか新しく始めた後に反映されます。進行中の会話は開始時のツールセットを使い続けます。",
         "items": {
           "browser": { "label": "ブラウザ", "summary": "ヘッドレスブラウザを操作してウェブを閲覧" },
           "computer": { "label": "Computer Use", "summary": "承認済みのデスクトップアプリを操作し、動作カーソルを表示します" },
@@ -1244,13 +1248,22 @@
     },
     "screenshot": {
       "title": "スクリーンショット共有",
+      "desc": "会話スクリーンショットのスタイルとレイアウトを選択します",
       "color": "カラー",
       "width": "幅",
       "light": "ライト",
       "dark": "ダーク",
       "sakura": "青空と桜",
       "mobile": "モバイル",
-      "desktop": "デスクトップ"
+      "desktop": "デスクトップ",
+      "mobileTitle": "モバイルレイアウト",
+      "mobileDesc": "縦長画像、スマートフォンでの共有向け",
+      "desktopTitle": "デスクトップレイアウト",
+      "desktopDesc": "幅広で、デスクトップでの保存と共有向け",
+      "segmentTitle": "自動分割",
+      "segmentLimitLabel": "1 ページの文字数上限",
+      "segmentLimitHint": "表示テキストがこの上限を超えると、会話ラウンドの区切りで次のスクリーンショットに分けます。既定は 10000 文字です。",
+      "segmentLimitUnit": "文字"
     },
     "bridge": {
       "agent": "Agent",

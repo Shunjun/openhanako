@@ -13,10 +13,12 @@ import { createAgentSession, SessionManager } from "../lib/pi-sdk/index.js";
 import { debugLog } from "../lib/debug-log.js";
 import { t } from "../server/i18n.js";
 import { createDefaultSettings } from "../core/session-defaults.js";
-import { READ_ONLY_BUILTIN_TOOLS } from "../core/config-coordinator.js";
+import { SESSION_PERMISSION_MODES } from "../core/session-permission-mode.js";
 import { teardownSessionResources } from "../core/session-teardown.js";
 import {
   filterAgentPhoneTools,
+  getAgentPhoneActiveToolNames,
+  getAgentPhonePermissionMode,
   getAgentPhoneSessionDir,
   getAgentPhoneRefreshDate,
   shouldCompactAgentPhoneSession,
@@ -52,7 +54,7 @@ function resolveAgentPhoneModel(engine, ctx, agentConfig, modelOverride) {
  * @param {boolean} [opts.keepSession=false] - 是否保留 session 文件
  * @param {boolean} [opts.noMemory=false] - 不注入记忆，只用 personality
  * @param {boolean} [opts.noTools=false] - 不注入工具
- * @param {boolean} [opts.readOnly=false] - 只读模式（只保留读取类工具，排除写/编辑/ask_agent/dm 等）
+ * @param {boolean} [opts.readOnly=false] - 只读执行权限（保留工具 schema，调用时拦截副作用工具）
  * @returns {Promise<string>}  capture 轮的输出（已去掉 MOOD 块）
  */
 export async function runAgentSession(agentId, rounds, { engine, signal, sessionSuffix = "temp", ephemeralDir, systemAppend, keepSession = false, noMemory = false, noTools = false, readOnly = false } = {}) {
@@ -79,7 +81,7 @@ export async function runAgentSession(agentId, rounds, { engine, signal, session
   fs.mkdirSync(sessionDir, { recursive: true });
   const tempSessionMgr = SessionManager.create(cwd, sessionDir);
 
-  // 工具模式：noTools = 无工具，readOnly = 只读工具，默认 = 全部
+  // 工具模式：noTools = 无工具；readOnly 只影响执行权限，不裁剪 schema。
   let tools, customTools;
   if (noTools) {
     tools = [];
@@ -93,15 +95,17 @@ export async function runAgentSession(agentId, rounds, { engine, signal, session
           : {}),
       })
       : agent.tools;
-    const built = ctx.buildTools(cwd, agentToolsSnapshot, { agentDir, workspace: engine.getHomeCwd(agentId) });
-    if (readOnly) {
-      const READ_ONLY_CUSTOM = ["search_memory", "recall_experience", "web_search", "web_fetch"];
-      tools = built.tools.filter(t => READ_ONLY_BUILTIN_TOOLS.includes(t.name));
-      customTools = (built.customTools || []).filter(t => READ_ONLY_CUSTOM.includes(t.name));
-    } else {
-      tools = built.tools;
-      customTools = built.customTools;
-    }
+    const permissionMode = readOnly
+      ? SESSION_PERMISSION_MODES.READ_ONLY
+      : SESSION_PERMISSION_MODES.OPERATE;
+    const built = ctx.buildTools(cwd, agentToolsSnapshot, {
+      agentDir,
+      workspace: engine.getHomeCwd(agentId),
+      getSessionPath: () => tempSessionMgr?.getSessionFile?.() || null,
+      getPermissionMode: () => permissionMode,
+    });
+    tools = built.tools;
+    customTools = built.customTools;
   }
   const model = ctx.resolveModel(agent.config);
   const { session } = await createAgentSession({
@@ -284,11 +288,18 @@ export async function runAgentPhoneSession(agentId, rounds, {
         : {}),
     })
     : agent.tools;
+  const phonePermissionMode = getAgentPhonePermissionMode(toolMode);
   const built = ctx.buildTools(cwd, agentToolsSnapshot, {
     agentDir,
     workspace: engine.getHomeCwd(agentId),
+    getSessionPath: () => sessionManager?.getSessionFile?.() || null,
+    getPermissionMode: () => phonePermissionMode,
   });
   const { tools, customTools } = filterAgentPhoneTools(built, { toolMode });
+  const sessionCustomTools = [
+    ...customTools,
+    ...(Array.isArray(extraCustomTools) ? extraCustomTools : []),
+  ];
   const model = resolveAgentPhoneModel(engine, ctx, agent.config, modelOverride);
   const { session } = await createAgentSession({
     cwd,
@@ -300,11 +311,12 @@ export async function runAgentPhoneSession(agentId, rounds, {
     thinkingLevel: "medium",
     resourceLoader: tempResourceLoader,
     tools,
-    customTools: [
-      ...customTools,
-      ...(Array.isArray(extraCustomTools) ? extraCustomTools : []),
-    ],
+    customTools: sessionCustomTools,
   });
+  session.setActiveToolsByName?.(getAgentPhoneActiveToolNames({
+    tools,
+    customTools: sessionCustomTools,
+  }));
 
   const sessionPath = session.sessionManager?.getSessionFile?.();
   if (sessionPath) {

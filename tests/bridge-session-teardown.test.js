@@ -492,6 +492,43 @@ describe("BridgeSessionManager teardown", () => {
     expect(buildOpts.getPermissionMode()).toBe("read_only");
   });
 
+  it("owner bridge read-only sessions keep full schema and rely on permission wrappers", async () => {
+    const agent = makeAgent(rootDir);
+    agent.tools = [{ name: "search_memory" }, { name: "record_experience" }];
+    const buildTools = vi.fn((_cwd, customTools) => ({
+      tools: [{ name: "read" }, { name: "write" }],
+      customTools,
+    }));
+    const deps = {
+      ...makeDeps(agent),
+      getPreferences: () => ({ thinking_level: "medium", bridge: { readOnly: true } }),
+      buildTools,
+    };
+    const mgrPath = path.join(agent.sessionDir, "bridge", "owner", "s-read-only-full-tools.jsonl");
+    const manager = new BridgeSessionManager(deps);
+    sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => mgrPath });
+
+    createAgentSessionMock.mockResolvedValue({
+      session: {
+        model: { input: ["text"] },
+        prompt: vi.fn(async () => {}),
+        subscribe: vi.fn(() => () => {}),
+        dispose: vi.fn(),
+        sessionManager: { getSessionFile: () => mgrPath },
+        extensionRunner: { hasHandlers: vi.fn(() => false) },
+      },
+    });
+
+    await manager.executeExternalMessage("hello", "bridge-k-read-only-full-tools", null, { agentId: "agent-a" });
+
+    const createArgs = createAgentSessionMock.mock.calls.at(-1)[0];
+    expect(createArgs.tools.map((tool) => tool.name)).toEqual(["read", "write"]);
+    expect(createArgs.customTools.map((tool) => tool.name)).toEqual([
+      "search_memory",
+      "record_experience",
+    ]);
+  });
+
   it("owner bridge text-only model prepares images through the vision bridge", async () => {
     const agent = makeAgent(rootDir);
     const visionBridge = {

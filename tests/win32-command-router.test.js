@@ -7,6 +7,7 @@ describe("classifyWin32Command", () => {
       ipconfig: "C:\\Windows\\System32\\ipconfig.exe",
       reg: "C:\\Windows\\System32\\reg.exe",
       git: "C:\\Program Files\\Git\\cmd\\git.exe",
+      python: "C:\\Users\\Me\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
     };
     return table[name.toLowerCase()] || null;
   };
@@ -32,6 +33,15 @@ describe("classifyWin32Command", () => {
 
   it("routes simple Git commands to the structured git runner", () => {
     expect(classifyWin32Command("git status", { resolveNativePath }).runner).toBe("git");
+  });
+
+  it("routes simple Python commands to the structured python runner", () => {
+    expect(classifyWin32Command("python script.py", { resolveNativePath }).runner).toBe("python");
+    expect(classifyWin32Command('python -c "import sys; print(sys.version)"', { resolveNativePath }).runner).toBe("python");
+  });
+
+  it("keeps shell-shaped Python commands on the bash path", () => {
+    expect(classifyWin32Command("python script.py > out.txt", { resolveNativePath }).runner).toBe("bash");
   });
 
   it("keeps complex POSIX commands on the bash path", () => {

@@ -240,6 +240,11 @@
     opacity: 1;
 }
 
+.msgActionBtnActive:hover {
+    color: var(--accent) !important;
+    background: rgba(var(--accent-rgb), 0.16);
+}
+
 .msgActionBtnCopied {
     color: var(--accent) !important;
 }

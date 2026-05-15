@@ -139,6 +139,89 @@ describe("createWin32Exec", () => {
     );
   });
 
+  it("grants sandboxed Python commands read-only access to the Python runtime", async () => {
+    classifyWin32Command.mockReturnValue({ runner: "python", reason: "python-command" });
+    const pythonExe = "C:\\Users\\Me\\AppData\\Local\\Programs\\Python\\Python311\\python.exe";
+    const pythonRoot = "C:\\Users\\Me\\AppData\\Local\\Programs\\Python\\Python311";
+    const helper = "C:\\Hanako\\resources\\sandbox\\windows\\hana-win-sandbox.exe";
+    existsSync.mockImplementation((p) => p === pythonExe || p === pythonRoot || p === helper);
+    spawnSync.mockImplementation((cmd, args) => {
+      if (cmd === "where" && args?.[0] === "python") {
+        return { status: 0, stdout: `${pythonExe}\r\n`, stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+
+    const createWin32Exec = await loadExecFactory();
+    const exec = createWin32Exec({
+      sandbox: {
+        helperPath: helper,
+        grants: {
+          readPaths: [],
+          writePaths: ["C:\\work"],
+        },
+      },
+    });
+
+    await exec("python tools\\make_doc.py", "C:\\work", {
+      onData: () => {},
+      signal: undefined,
+      timeout: 5,
+      env: { PATH: "C:\\Users\\Me\\AppData\\Local\\Programs\\Python\\Python311;C:\\Windows\\System32" },
+    });
+
+    const helperArgs = spawnAndStream.mock.calls[0][1];
+    expect(spawnAndStream).toHaveBeenCalledWith(
+      helper,
+      expect.arrayContaining([
+        "--grant-read",
+        pythonRoot,
+        "--grant-write",
+        "C:\\work",
+        "--",
+        pythonExe,
+        "tools\\make_doc.py",
+      ]),
+      expect.objectContaining({ cwd: "C:\\work" })
+    );
+    for (let i = 0; i < helperArgs.length - 1; i += 1) {
+      if (helperArgs[i] === "--grant-write") expect(helperArgs[i + 1]).not.toBe(pythonRoot);
+    }
+  });
+
+  it("rejects explicit Python executables outside the workspace when they are not on PATH", async () => {
+    classifyWin32Command.mockReturnValue({ runner: "python", reason: "python-command" });
+    const privatePython = "D:\\Secrets\\python.exe";
+    const helper = "C:\\Hanako\\resources\\sandbox\\windows\\hana-win-sandbox.exe";
+    existsSync.mockImplementation((p) => p === privatePython || p === helper);
+    spawnSync.mockImplementation((cmd, args) => {
+      if (cmd === "where" && args?.[0] === "python.exe") {
+        return { status: 1, stdout: "", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+
+    const createWin32Exec = await loadExecFactory();
+    const exec = createWin32Exec({
+      sandbox: {
+        helperPath: helper,
+        grants: {
+          readPaths: [],
+          writePaths: ["C:\\work"],
+        },
+      },
+    });
+
+    await expect(exec('"D:\\Secrets\\python.exe" tools\\make_doc.py', "C:\\work", {
+      onData: () => {},
+      signal: undefined,
+      timeout: 5,
+      env: { PATH: "C:\\Windows\\System32" },
+    })).rejects.toThrow("outside the workspace");
+
+    expect(spawnAndStream).not.toHaveBeenCalled();
+  });
+
   it("keeps bash-routed commands on the bash fallback path", async () => {
     classifyWin32Command.mockReturnValue({ runner: "bash", reason: "complex-shell" });
     existsSync.mockImplementation((p) => p === "C:\\mock\\bash.exe");
