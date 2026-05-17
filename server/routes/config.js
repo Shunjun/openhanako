@@ -10,11 +10,6 @@ import { safeJson } from "../hono-helpers.js";
 import { t } from "../i18n.js";
 import { debugLog } from "../../lib/debug-log.js";
 import { getRawConfig, clearConfigCache } from "../../lib/memory/config-loader.js";
-import {
-  READ_WRITE_AGENT_DIRS,
-  READ_WRITE_HOME_DIRS,
-} from "../../lib/sandbox/policy.js";
-import { workspaceRootsForSandbox } from "../../shared/workspace-scope.js";
 import { FactStore } from "../../lib/memory/fact-store.js";
 import {
   writeCompiledResetMarker,
@@ -112,27 +107,6 @@ export function createConfigRoute(engine) {
       }
 
       return c.json(config);
-    } catch (err) {
-      return c.json({ error: err.message }, 500);
-    }
-  });
-
-  // 返回沙盒默认可写路径列表
-  route.get("/config/sandbox-default-paths", async (c) => {
-    try {
-      const agentDir = engine.agentDir;
-      const hanakoHome = engine.hanakoHome;
-      const workspace = engine.config?.cwd || null;
-      const workspaceFolders = engine.config?.workspace_folders || [];
-      const workspaceRoots = workspaceRootsForSandbox(workspace, workspaceFolders);
-
-      const defaults = [
-        ...READ_WRITE_AGENT_DIRS.map((d) => path.join(agentDir, d)),
-        ...READ_WRITE_HOME_DIRS.map((d) => path.join(hanakoHome, d)),
-        ...workspaceRoots,
-      ].filter(Boolean);
-
-      return c.json({ paths: defaults });
     } catch (err) {
       return c.json({ error: err.message }, 500);
     }

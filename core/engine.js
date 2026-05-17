@@ -639,8 +639,6 @@ export class HanaEngine {
   setSandbox(v) { this._prefs.setSandbox(v); }
   getSandboxNetwork() { return this._prefs.getSandboxNetwork(); }
   setSandboxNetwork(v) { this._prefs.setSandboxNetwork(v); }
-  getSandboxWritablePaths() { return this._prefs.getSandboxWritablePaths(); }
-  setSandboxWritablePaths(v) { this._prefs.setSandboxWritablePaths(v); }
   getFileBackup() { return this._prefs.getFileBackup(); }
   setFileBackup(p) { this._prefs.setFileBackup(p); }
   listCheckpoints() { return this._checkpointStore.list(); }
@@ -1335,7 +1333,6 @@ export class HanaEngine {
       hanakoHome: this.hanakoHome,
       getSandboxEnabled: () => this._readPreferences().sandbox !== false,
       getSandboxNetworkEnabled: () => this._readPreferences().sandbox_network === true,
-      getSandboxWritablePaths: () => this._prefs.getSandboxWritablePaths(),
       getExternalReadPaths,
       getSessionPath,
       recordFileOperation: (entry) => this.registerSessionFile(entry),
