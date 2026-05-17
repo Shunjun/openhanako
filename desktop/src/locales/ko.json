@@ -614,26 +614,7 @@
       "sharing": "공유",
       "plugins": "플러그인",
       "about": "소개",
-      "security": "보안",
-      "network": "네트워크"
-    },
-    "network": {
-      "proxy": "프록시",
-      "enableProxy": "프록시 활성화",
-      "enableProxyHint": "프록시 서버를 통해 외부 요청(LLM API 등) 라우팅",
-      "proxyUrl": "프록시 URL",
-      "proxyUrlHint": "http://, https://, socks5:// 지원",
-      "proxyUsername": "사용자 이름",
-      "proxyPassword": "비밀번호",
-      "noProxy": "프록시 제외",
-      "noProxyHint": "쉼표로 구분 (예: localhost,127.0.0.1)",
-      "optional": "선택",
-      "testConnection": "연결 테스트",
-      "testBtn": "테스트",
-      "testing": "테스트 중…",
-      "testSuccess": "연결 성공, 출구 IP: {ip}",
-      "testFailed": "연결 실패",
-      "proxyUrlRequired": "프록시 URL을 입력하세요"
+      "security": "보안"
     },
     "computerUse": {
       "title": "Computer Use",

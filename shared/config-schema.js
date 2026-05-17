@@ -24,8 +24,7 @@ export const CONFIG_SCHEMA = {
   timezone:                     { scope: 'global', setter: 'setTimezone',       getter: 'getTimezone', defaultValue: '' },
   sandbox:                      { scope: 'global', setter: 'setSandbox',        getter: 'getSandbox', defaultValue: true },
   sandbox_network:              { scope: 'global', setter: 'setSandboxNetwork', getter: 'getSandboxNetwork', defaultValue: false },
-  sandbox_writable_paths:       { scope: 'global', setter: 'setSandboxWritablePaths', getter: 'getSandboxWritablePaths', defaultValue: [] },
-  file_backup:                  { scope: 'global', setter: 'setFileBackup',     getter: 'getFileBackup' },
+  file_backup:                  { scope: 'global', setter: 'setFileBackup',    getter: 'getFileBackup' },
   update_channel:               { scope: 'global', setter: 'setUpdateChannel',  getter: 'getUpdateChannel', defaultValue: 'stable' },
   auto_check_updates:           { scope: 'global', setter: 'setAutoCheckUpdates', getter: 'getAutoCheckUpdates', defaultValue: true },
   thinking_level:               { scope: 'global', setter: 'setThinkingLevel',  getter: 'getThinkingLevel', defaultValue: 'auto' },
@@ -35,7 +34,6 @@ export const CONFIG_SCHEMA = {
   'channels.enabled':           { scope: 'global', setter: 'setChannelsEnabled', getter: 'getChannelsEnabled', prefsPath: 'channels_enabled', defaultValue: false },
   'bridge.readOnly':            { scope: 'global', setter: 'setBridgeReadOnly', getter: 'getBridgeReadOnly', defaultValue: false },
   'bridge.receiptEnabled':      { scope: 'global', setter: 'setBridgeReceiptEnabled', getter: 'getBridgeReceiptEnabled', defaultValue: true },
-  proxy:                        { scope: 'global', setter: 'setProxy',           getter: 'getProxy',defaultValue: { enabled: false } },
 };
 
 // 未声明的字段默认为 agent scope，不需要额外导出。

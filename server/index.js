@@ -42,7 +42,6 @@ import { createChannelsRoute } from "./routes/channels.js";
 import { createDmRoute } from "./routes/dm.js";
 import { createFsRoute } from "./routes/fs.js";
 import { createPreferencesRoute } from "./routes/preferences.js";
-import { createProxyRoute } from "./routes/proxy.js";
 import { createBridgeRoute } from "./routes/bridge.js";
 import { createAuthRoute } from "./routes/auth.js";
 import { createDiaryRoute } from "./routes/diary.js";
@@ -94,18 +93,6 @@ console.log("[server] ② HanaEngine 构造完成，开始 init...");
 await engine.init((msg) => console.log(`[server] ${msg}`));
 console.log("[server] ② engine.init 完成");
 dlog.log("server", "engine initialized");
-
-// ── 应用代理设置（如有） ──
-try {
-  const { ProxyManager } = await import("../core/proxy-manager.js");
-  const proxyCfg = engine.getProxy?.();
-  if (proxyCfg?.enabled && proxyCfg?.url) {
-    const mgr = new ProxyManager();
-    mgr.apply(proxyCfg);
-  }
-} catch (err) {
-  console.warn(`[proxy] startup apply failed: ${err.message}`);
-}
 
 // 注入依赖给 BrowserManager（避免循环依赖）
 import { BrowserManager } from "../lib/browser/browser-manager.js";
@@ -410,7 +397,6 @@ app.route("/api", createChannelsRoute(engine, hub));
 app.route("/api", createDmRoute(engine));
 app.route("/api", createFsRoute(engine));
 app.route("/api", createPreferencesRoute(engine));
-app.route("/api", createProxyRoute(engine));
 app.route("/api", createBridgeRoute(engine, bridgeManagerRef));
 app.route("/api", createAuthRoute(engine));
 app.route("/api", createDiaryRoute(engine));

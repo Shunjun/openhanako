@@ -22,7 +22,6 @@ import { PluginsTab } from './tabs/PluginsTab';
 import { PluginMarketplaceTab } from './tabs/PluginMarketplaceTab';
 import { SecurityTab } from './tabs/SecurityTab';
 import { SharingTab } from './tabs/SharingTab';
-import { NetworkTab } from './tabs/NetworkTab';
 import { getNativeSettingsTabComponent } from './native-settings-tabs';
 import { CropOverlay } from './overlays/CropOverlay';
 import { AgentCreateOverlay } from './overlays/AgentCreateOverlay';
@@ -44,7 +43,6 @@ const TAB_COMPONENTS: Record<string, React.ComponentType> = {
   skills: SkillsTab,
   bridge: BridgeTab,
   providers: ProvidersTab,
-  network: NetworkTab,
   media: MediaTab,
   sharing: SharingTab,
   plugins: PluginsTab,
@@ -63,7 +61,6 @@ const TAB_TITLES: Record<string, string> = {
   skills: '技能',
   bridge: '社交平台',
   providers: '供应商',
-  network: '网络',
   media: '多媒体',
   sharing: '分享',
   plugins: '插件',

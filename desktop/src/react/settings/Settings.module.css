@@ -1624,35 +1624,6 @@
     min-width: 0;
 }
 
-/* ─── Network tab ─── */
-
-.network-form {
-    padding: var(--space-sm) var(--space-md);
-}
-
-.network-form-grid {
-    display: flex;
-    gap: var(--space-md);
-}
-
-.network-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-sm);
-    margin-top: var(--space-xs);
-}
-
-.network-test-ok {
-    font-size: 0.78rem;
-    color: var(--color-success, #4caf50);
-}
-
-.network-test-fail {
-    font-size: 0.78rem;
-    color: var(--color-error, #f44336);
-}
-
 /* Text input */
 .settings-input {
     font-family: inherit;

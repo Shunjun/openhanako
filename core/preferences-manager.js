@@ -21,9 +21,6 @@ import {
   upsertWorkspaceUiState,
 } from "../shared/workspace-ui-state.js";
 import { normalizeWorkspacePath } from "../shared/workspace-history.js";
-import { ProxyManager } from "./proxy-manager.js";
-
-const proxyManager = new ProxyManager();
 
 export class PreferencesManager {
   /**
@@ -199,40 +196,6 @@ export class PreferencesManager {
     else prefs.bridge = bridge;
     this.savePreferences(prefs);
     return normalized;
-  }
-
-  /** 读取代理配置 */
-  getProxy() {
-    const raw = this._cache.proxy;
-    if (!raw) return { enabled: false, url: "", username: "", password: "", no_proxy: "" };
-    return {
-      enabled: !!raw.enabled,
-      url: raw.url || "",
-      username: raw.username || "",
-      password: raw.password || "",
-      no_proxy: raw.no_proxy || "",
-    };
-  }
-
-  /** 保存代理配置并应用到全局 fetch dispatcher */
-  setProxy(partial) {
-    const prev = this.getProxy();
-    const next = { ...prev, ...partial };
-    // 清理空值
-    if (!next.username) delete next.username;
-    if (!next.password) delete next.password;
-    if (!next.no_proxy) delete next.no_proxy;
-
-    const prefs = this._mutableCopy();
-    prefs.proxy = next;
-    this.savePreferences(prefs);
-
-    // 应用代理到全局 dispatcher（无需重启服务）
-    if (next.enabled && next.url) {
-      proxyManager.apply(next);
-    } else {
-      proxyManager.disable();
-    }
   }
 
   /** 读取 Computer Use 全局设置（provider 选择、批准列表、平台策略） */
