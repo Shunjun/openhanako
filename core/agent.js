@@ -35,6 +35,7 @@ import { createCheckDeferredTool } from "../lib/tools/check-deferred-tool.js";
 import { createWaitTool } from "../lib/tools/wait-tool.js";
 import { createStopTaskTool } from "../lib/tools/stop-task-tool.js";
 import { createCurrentStatusTool } from "../lib/tools/current-status-tool.js";
+import { createTerminalTool } from "../lib/tools/terminal-tool.js";
 import { runCompatChecks } from "../lib/compat/index.js";
 import { getPlatformPromptNote } from "./platform-prompt.js";
 
@@ -109,6 +110,7 @@ export class Agent {
     this._notifyTool = null;
     this._stopTaskTool = null;
     this._currentStatusTool = null;
+    this._terminalTool = null;
 
     /**
      * 外部回调注入（由 AgentManager._createAgentInstance 填充）。
@@ -341,6 +343,12 @@ export class Agent {
       getCurrentModel: () => this._cb?.getEngine?.()?.currentModel || null,
       getUiContext: (sessionPath) => this._cb?.getEngine?.()?.getUiContext?.(sessionPath) || null,
       listSessionFiles: (sessionPath) => this._cb?.getEngine?.()?.listSessionFiles?.(sessionPath) || [],
+      getBridgeContext: (sessionPath) => this._cb?.getEngine?.()?.getBridgeContextForSessionPath?.(sessionPath, { agentId: this.id }) || null,
+    });
+    this._terminalTool = createTerminalTool({
+      getTerminalSessionManager: () => this._cb?.getTerminalSessionManager?.(),
+      getAgentId: () => this.id,
+      getCwd: () => this._cb?.getCwd?.() || this.agentDir,
     });
 
     // 10. 设置修改工具
@@ -603,6 +611,7 @@ export class Agent {
       this._subagentTool,
       this._checkDeferredTool,
       this._currentStatusTool,
+      this._terminalTool,
       createWaitTool(),
     ].filter(Boolean);
   }
